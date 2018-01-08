@@ -12,6 +12,7 @@ const activitesMargin = {top: 60, right: 20, bottom: 20, left: 20};
 const acivitesWidth = 350 - margin.left - margin.right;
 
 const chart = d3.select("#chart").append("div").attr("class", "chart-area");
+const tooltip = d3.select("#tooltip");
 
 ///////////////////////////////////////////////////////////////////////////////
 // Scales
@@ -139,7 +140,8 @@ function renderChart(data, year) {
 		.attr("width", width + margin.left + margin.right)
 		.attr("height", height + margin.top + margin.bottom)
 	.append("g")
-		.attr("transform", `translate(${margin.left}, ${margin.top})`);
+		.attr("transform", `translate(${margin.left}, ${margin.top})`)
+		.attr("class", `year-${year}`);
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Year title
@@ -171,7 +173,8 @@ function renderChart(data, year) {
 	// Waterfall cascade
 	const ribbon = g.selectAll(".ribbon")
 		.data(data)
-		.enter();
+		.enter().append("g")
+			.attr("class", "ribbon");
 
 	const padding = 0.2; // ribbon width = y scale bandwidth * (1 - padding)
 
@@ -193,13 +196,13 @@ function renderChart(data, year) {
 		"Total Cash Flows From Financing Activities", "Change In Cash and Cash Equivalents"];
 	ribbon
 		.append("rect")
-			.attr("class", "background-bar")
+			.attr("class", "background-rect")
 			.attr("x", 0)
 			.attr("y", d => y(d.key))
 			.attr("width", d => summaryRows.includes(d.key) ? width + margin.right : 0)
 			.attr("height", y.bandwidth())
-			.attr("fill", d => color(d.color))
-			.attr("opacity", 0.1);
+			.style("fill", d => color(d.color))
+			.style("opacity", 0.1);
 
 	// Total change in cash flow bar
 	const lastData = data[data.length - 1];
@@ -224,6 +227,22 @@ function renderChart(data, year) {
 
 	// Render horizontal zule
 	renderHorizontalRule(g, -margin.left, width + margin.right);
+
+	/////////////////////////////////////////////////////////////////////////////
+	// Hover interactions
+	// Add invisible bars to capture mouse hover
+	ribbon.append("rect")
+			.attr("class", "invisible-rect")
+			.attr("x", 0)
+			.attr("y", d => y(d.key))
+			.attr("width", d => width + margin.right)
+			.attr("height", y.bandwidth())
+			.style("fill", "none")
+			.style("pointer-events", "all")
+			.style("opacity", 0.1)
+			.on("mouseover", mouseover)
+			.on("mousemove", mousemove)
+			.on("mouseout", mouseout);
 }
 
 function renderHorizontalRule(g, x1, x2) {
@@ -241,3 +260,35 @@ function renderHorizontalRule(g, x1, x2) {
 			.attr("y2", (d, i) => yPos[i])
 			.style("stroke", "#ccc");
 }
+
+	/////////////////////////////////////////////////////////////////////////////
+	//// Event Listeners ////////////////////////////////////////////////////////
+	/////////////////////////////////////////////////////////////////////////////
+	// Tooltip
+	function mouseover() {
+		tooltip
+			.transition()
+				.style("opacity", 1);
+		d3.select(this)
+			.style("fill", d => color(d.color));
+	}
+
+	function mousemove(d) {
+		tooltip
+			.style("left", d3.event.pageX + "px")
+			.style("top", d3.event.pageY + 10 + "px")
+			.style("background-color", "#fff")
+			.style("color", d.value > 0 ? color("Positive") : d.value < 0 ? color("Negative") : color("Zero"));
+		tooltip.html(`
+			<span>${d.key}</span><br>
+			<span>${d3.format("+")(d.value)}</span>
+		`);
+	}
+
+	function mouseout() {
+		tooltip
+			.transition()
+				.style("opacity", 0);
+		d3.select(this)
+			.style("fill", "none");
+	}
